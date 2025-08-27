@@ -10,32 +10,105 @@ import {
   View,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export default function App() {
-  const [task, setTask] = useState([]);
-  const [newTask, setNewTask] = useState("");
+  const [tasks, setTasks] = useState([]); //estado para armazenar a lista de tarefas
+  const [newtask, setNewTask] = useState(""); //estado para o texto da nova tarefa
+//nn depende de nada pq ele so faz o carregamento
+useEffect(()=>{
+const loadTasks = async () => {
+  try{
+    //pega as tasks e salva em JSON e coloca dentro d sattasks
+    const savedTasks = await AsyncStorage.getItem("tasks");
+    savedTasks && setTasks(JSON.parse(savedTasks));
 
+  }catch(error){
+    console.error("Erro ao carregar tarefa:", error);
+  }
+};
+loadTasks();
+
+},[])
+
+  useEffect(()=> {
+    const saveTasks = async ()=> {
+      try{
+        await AsyncStorage.setItem("tasks", JSON.stringify(tasks));
+      } catch(error){
+        console.error("Erro ao salvar tarefas", error);
+      }
+    };
+
+    saveTasks();
+  },[tasks]);
+  //adicionar
   const addTask = () => {
-    if (newTask.trim().length > 0) {
-      setTask((prevTasks) => [
+    if (newtask.trim().length > 0) {
+      //garante que a tarefa não seja vazia
+      setTasks((prevTasks) => [
         ...prevTasks,
-        { id: Date.now().toString(), text: newTask.trim(), completed: false },
+        { id: Date.now().toString(), text: newtask.trim(), completed: false },
       ]);
-      setNewTask("");
-      Keyboard.dismiss();
+      setNewTask(""); //limpa o campo de input
+      Keyboard.dismiss(); //Fecha o teclado do usuario
     } else {
-      Alert.alert("Atenção", "Por favor, digite uma tarefa");
+      Alert.alert("Atenção", "Por favor, digite uma tarefa.");
     }
   };
+  //editar
 
+  const toggleTaskCompleted = (id) => {
+    setTasks((prevTasks) =>
+      prevTasks.map((task) =>
+        task.id === id ? { ...task, completed: !task.completed } : task
+      )
+    );
+  };
+  //deletando
+  const deleteTask = (id) => {
+    Alert.alert(
+      "confirmar exclusão",
+      "Tem certeza que deseja excluir esta tarefa",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: () =>
+            setTasks((preveTasks) =>
+              preveTasks.filter((task) => task.id !== id)
+            ),
+        },
+      ]
+    );
+  };
+
+  const renderList = ({ item }) => (
+    <View style={styles.taskItem} key={item.id}>
+      <TouchableOpacity
+        onPress={() => toggleTaskCompleted(item.id)}
+        style={styles.taskTextContainer}
+      >
+        <Text
+          style={[styles.taskText, item.completed && styles.completedTaskItem]}
+        >
+          {item.text}
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity onPress={() => deleteTask(item.id)}>
+        <Text>🗑️</Text>
+      </TouchableOpacity>
+    </View>
+  );
   return (
     //cabeçario
     <View style={styles.container}>
       <View style={styles.topBar}>
         <Text style={styles.topBarTitle}>Minhas Tarefas</Text>
         <TouchableOpacity>
-          <Text>🌝</Text>
+          <Text>🌛</Text>
         </TouchableOpacity>
       </View>
       {/* Local onde o usuario insere as tarefas */}
@@ -43,28 +116,31 @@ export default function App() {
         <TextInput
           style={styles.input}
           placeholder="Adicionar nova tarefa..."
-          value={newTask}
+          value={newtask}
           onChangeText={setNewTask}
-          onSubmitEditing={addTask}
+          onSubmitEditing={addTask} //adiciona a tarefa ap pressionar enter no teclado
         />
+        {/* botão */}
         <TouchableOpacity style={styles.addButton} onPress={addTask}>
           <Text style={styles.buttonText}>Adicionar</Text>
         </TouchableOpacity>
       </View>
 
-      {/* Lista de Tarefas */}
+      {/* Lista de Tarefas do usuario */}
       <FlatList
         style={styles.flatList}
-        data={task}
+        data={tasks}
+        //mostrar em tela
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <View key={item.id} style={styles.taskItem}>
-            <Text>{item.text}</Text>
-            <TouchableOpacity>
-              <Text>🗑️</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        renderItem={renderList}
+        // renderItem={({item})=>(
+        //   <View key={item.id} style={styles.taskItem}>
+        //     <Text>{item.text}</Text>
+        //   <TouchableOpacity><Text>🗑️</Text></TouchableOpacity>
+
+        //   </View>
+        // )}
+
         ListEmptyComponent={() => (
           <Text style={styles.emptyListText}>
             Nenhuma tarefa adicionada ainda.
@@ -72,20 +148,20 @@ export default function App() {
         )}
         contentContainerStyle={styles.flatListContent}
       />
+
       <StatusBar style="auto" />
     </View>
   );
 }
-
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: "#e0f7fa",
     flex: 1,
+    backgroundColor: "#e0f7fa",
   },
   topBar: {
     backgroundColor: "#fff",
     flexDirection: "row",
-    justifyContent: "space-between",
+    justifyContent: "space-around",
     alignItems: "center",
     paddingHorizontal: 20,
     paddingTop: 50,
@@ -94,14 +170,13 @@ const styles = StyleSheet.create({
     borderBottomColor: "rgba(0,0,0,0.1)",
   },
   topBarTitle: {
-    color: "#00796b",
+    color: "#00796d",
     fontSize: 24,
     fontWeight: "bold",
   },
   card: {
     backgroundColor: "#fff",
     color: "#000",
-    shadowColor: "#000",
     margin: 20,
     borderRadius: 15,
     padding: 20,
@@ -131,13 +206,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
   },
-  flatListContent: {
+  flatList: {
     paddingBottom: 10, //espaçamento no final da lista
   },
   taskItem: {
     backgroundColor: "#fff",
-    color: "#333",
-    borderColor: "rgba(0,0,0,0.1)",
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -149,10 +222,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 5,
+    color: "#333",
     borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.1)",
   },
-  taskTextContainer: {
-    flex: 1, //permite que o texto ocupe o espaço disponível
+  takTextConatiner: {
+    flex: 1, //permirtir que o texto ocupe o espaço disponivel
     marginRight: 10,
   },
   taskText: {
@@ -164,12 +239,12 @@ const styles = StyleSheet.create({
     textDecorationLine: "line-through", //risca o texto
     opacity: 0.6,
   },
-  deleteButton: {
+  deleButtom: {
     padding: 8,
     borderRadius: 5,
   },
-  deleteButtonText: {
-    // color: "#fff",
+  deleteButtomText: {
+    //color :"#ffff",
     fontSize: 22,
     fontWeight: "bold",
   },
